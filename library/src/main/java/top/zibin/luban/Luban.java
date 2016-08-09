@@ -4,8 +4,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
-import android.media.ExifInterface;
-import android.support.annotation.NonNull;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
@@ -34,7 +32,7 @@ public class Luban {
     private final File mCacheDir;
 
     private OnCompressListener compressListener;
-    private File mFile;
+    private IImageInfo mImageInfo;
     private int gear = THIRD_GEAR;
 
     Luban(File cacheDir) {
@@ -82,12 +80,12 @@ public class Luban {
     }
 
     public Luban launch() {
-        checkNotNull(mFile, "the image file cannot be null, please call .load() before this method!");
+        checkNotNull(mImageInfo, "the image file cannot be null, please call .load() before this method!");
 
         if (compressListener != null) compressListener.onStart();
 
         if (gear == Luban.FIRST_GEAR)
-            Observable.just(firstCompress(mFile))
+            Observable.just(firstCompress())
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
                     .doOnError(new Action1<Throwable>() {
@@ -110,7 +108,7 @@ public class Luban {
                         }
                     });
         else if (gear == Luban.THIRD_GEAR)
-            Observable.just(thirdCompress(mFile.getAbsolutePath()))
+            Observable.just(thirdCompress())
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
                     .doOnError(new Action1<Throwable>() {
@@ -136,8 +134,8 @@ public class Luban {
         return this;
     }
 
-    public Luban load(File file) {
-        mFile = file;
+    public Luban load(IImageInfo imageInfo) {
+        mImageInfo = imageInfo;
         return this;
     }
 
@@ -153,20 +151,18 @@ public class Luban {
 
     public Observable<File> asObservable() {
         if (gear == FIRST_GEAR)
-            return Observable.just(firstCompress(mFile));
+            return Observable.just(firstCompress());
         else if (gear == THIRD_GEAR)
-            return Observable.just(thirdCompress(mFile.getAbsolutePath()));
+            return Observable.just(thirdCompress());
         else return Observable.empty();
     }
 
-    private File thirdCompress(@NonNull String filePath) {
-        String thumb = mCacheDir.getAbsolutePath() + "/" + System.currentTimeMillis();
-
+    private File thirdCompress() {
         double size;
 
-        int angle = getImageSpinAngle(filePath);
-        int width = getImageSize(filePath)[0];
-        int height = getImageSize(filePath)[1];
+        int angle = mImageInfo.getImageSpinAngle();
+        int width = mImageInfo.getWidth();
+        int height = mImageInfo.getHeight();
         int thumbW = width % 2 == 1 ? width + 1 : width;
         int thumbH = height % 2 == 1 ? height + 1 : height;
 
@@ -210,80 +206,59 @@ public class Luban {
             size = size < 100 ? 100 : size;
         }
 
-        return compress(filePath, thumb, thumbW, thumbH, angle, (long) size);
+        return compress(thumbW, thumbH, angle, (long) size);
     }
 
-    private File firstCompress(@NonNull File file) {
+    private File firstCompress() {
         int minSize = 60;
         int longSide = 720;
         int shortSide = 1280;
 
-        String filePath = file.getAbsolutePath();
-        String thumbFilePath = mCacheDir.getAbsolutePath() + "/" + System.currentTimeMillis();
         long size = 0;
-        long maxSize = file.length() / 5;
+        long maxSize = mImageInfo.getSize() / 5;
 
-        int angle = getImageSpinAngle(filePath);
-        int[] imgSize = getImageSize(filePath);
+        int angle = mImageInfo.getImageSpinAngle();
+        int imageWidth = mImageInfo.getWidth();
+        int imgHeight = mImageInfo.getHeight();
         int width = 0, height = 0;
-        if (imgSize[0] <= imgSize[1]) {
-            double scale = (double) imgSize[0] / (double) imgSize[1];
+        if (imageWidth <= imgHeight) {
+            double scale = (double) imageWidth / (double) imgHeight;
             if (scale <= 1.0 && scale > 0.5625) {
-                width = imgSize[0] > shortSide ? shortSide : imgSize[0];
-                height = width * imgSize[1] / imgSize[0];
+                width = imageWidth > shortSide ? shortSide : imageWidth;
+                height = width * imgHeight / imageWidth;
                 size = minSize;
             } else if (scale <= 0.5625) {
-                height = imgSize[1] > longSide ? longSide : imgSize[1];
-                width = height * imgSize[0] / imgSize[1];
+                height = imgHeight > longSide ? longSide : imgHeight;
+                width = height * imageWidth / imgHeight;
                 size = maxSize;
             }
         } else {
-            double scale = (double) imgSize[1] / (double) imgSize[0];
+            double scale = (double) imgHeight / (double) imageWidth;
             if (scale <= 1.0 && scale > 0.5625) {
-                height = imgSize[1] > shortSide ? shortSide : imgSize[1];
-                width = height * imgSize[0] / imgSize[1];
+                height = imgHeight > shortSide ? shortSide : imgHeight;
+                width = height * imageWidth / imgHeight;
                 size = minSize;
             } else if (scale <= 0.5625) {
-                width = imgSize[0] > longSide ? longSide : imgSize[0];
-                height = width * imgSize[1] / imgSize[0];
+                width = imageWidth > longSide ? longSide : imageWidth;
+                height = width * imgHeight / imageWidth;
                 size = maxSize;
             }
         }
 
-        return compress(filePath, thumbFilePath, width, height, angle, size);
-    }
-
-    /**
-     * obtain the image's width and height
-     *
-     * @param imagePath the path of image
-     */
-    public int[] getImageSize(String imagePath) {
-        int[] res = new int[2];
-
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        options.inSampleSize = 1;
-        BitmapFactory.decodeFile(imagePath, options);
-
-        res[0] = options.outWidth;
-        res[1] = options.outHeight;
-
-        return res;
+        return compress(width, height, angle, size);
     }
 
     /**
      * obtain the thumbnail that specify the size
      *
-     * @param imagePath the target image path
-     * @param width     the width of thumbnail
-     * @param height    the height of thumbnail
+     * @param width  the width of thumbnail
+     * @param height the height of thumbnail
      * @return {@link Bitmap}
      */
-    private Bitmap compress(String imagePath, int width, int height) {
+    private Bitmap compress(int width, int height) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
-        BitmapFactory.decodeFile(imagePath, options);
+        mImageInfo.decode(options);
 
         int outH = options.outHeight;
         int outW = options.outWidth;
@@ -314,53 +289,21 @@ public class Luban {
         }
         options.inJustDecodeBounds = false;
 
-        return BitmapFactory.decodeFile(imagePath, options);
-    }
-
-    /**
-     * obtain the image rotation angle
-     *
-     * @param path path of target image
-     */
-    private int getImageSpinAngle(String path) {
-        int degree = 0;
-        try {
-            ExifInterface exifInterface = new ExifInterface(path);
-            int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-            switch (orientation) {
-                case ExifInterface.ORIENTATION_ROTATE_90:
-                    degree = 90;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_180:
-                    degree = 180;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_270:
-                    degree = 270;
-                    break;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return degree;
+        return mImageInfo.decode(options);
     }
 
     /**
      * 指定参数压缩图片
      * create the thumbnail with the true rotate angle
      *
-     * @param largeImagePath the big image path
-     * @param thumbFilePath  the thumbnail path
-     * @param width          width of thumbnail
-     * @param height         height of thumbnail
-     * @param angle          rotation angle of thumbnail
-     * @param size           the file size of image
+     * @param width  width of thumbnail
+     * @param height height of thumbnail
+     * @param angle  rotation angle of thumbnail
+     * @param size   the file size of image
      */
-    private File compress(String largeImagePath, String thumbFilePath, int width, int height, int angle, long size) {
-        Bitmap thbBitmap = compress(largeImagePath, width, height);
-
-        thbBitmap = rotatingImage(angle, thbBitmap);
-
-        return saveImage(thumbFilePath, thbBitmap, size);
+    private File compress(int width, int height, int angle, long size) {
+        Bitmap thbBitmap = compress(width, height);
+        return saveImage(thbBitmap, angle, size);
     }
 
     /**
@@ -383,22 +326,24 @@ public class Luban {
      * 保存图片到指定路径
      * Save image with specified size
      *
-     * @param filePath the image file save path 储存路径
-     * @param bitmap   the image what be save   目标图片
-     * @param size     the file size of image   期望大小
+     * @param bitmap the image what be save   目标图片
+     * @param angle  rotation angle of thumbnail
+     * @param size   the file size of image   期望大小
      */
-    private File saveImage(String filePath, Bitmap bitmap, long size) {
+    private File saveImage(Bitmap bitmap, int angle, long size) {
         checkNotNull(bitmap, TAG + "bitmap cannot be null");
 
-        File result = new File(filePath.substring(0, filePath.lastIndexOf("/")));
+        String thumbFilePath = mCacheDir.getAbsolutePath() + "/" + System.currentTimeMillis();
+
+        bitmap = rotatingImage(angle, bitmap);
+
+        File result = new File(thumbFilePath.substring(0, thumbFilePath.lastIndexOf("/")));
 
         if (!result.exists() && !result.mkdirs()) return null;
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         int options = 100;
         bitmap.compress(Bitmap.CompressFormat.JPEG, options, stream);
-
-        int i = (int) (size / stream.toByteArray().length / 1024.0 * 100);
 
         while (stream.toByteArray().length / 1024 > size) {
             stream.reset();
@@ -407,7 +352,7 @@ public class Luban {
         }
 
         try {
-            FileOutputStream fos = new FileOutputStream(filePath);
+            FileOutputStream fos = new FileOutputStream(thumbFilePath);
             fos.write(stream.toByteArray());
             fos.flush();
             fos.close();
@@ -415,6 +360,6 @@ public class Luban {
             e.printStackTrace();
         }
 
-        return new File(filePath);
+        return new File(thumbFilePath);
     }
 }

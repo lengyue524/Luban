@@ -1,6 +1,8 @@
 package top.zibin.luban.example;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
@@ -21,6 +23,8 @@ import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
 import rx.functions.Func1;
 import rx.schedulers.Schedulers;
+import top.zibin.luban.BitmapInfo;
+import top.zibin.luban.FileInfo;
 import top.zibin.luban.Luban;
 import top.zibin.luban.OnCompressListener;
 
@@ -65,7 +69,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private void compressWithLs(File file) {
         Luban.get(this)
-                .load(file)
+                .load(new FileInfo(file))
                 .putGear(Luban.THIRD_GEAR)
                 .setCompressListener(new OnCompressListener() {
                     @Override
@@ -77,7 +81,8 @@ public class MainActivity extends AppCompatActivity {
                         Glide.with(MainActivity.this).load(file).into(image);
 
                         thumbFileSize.setText(file.length() / 1024 + "k");
-                        thumbImageSize.setText(Luban.get(getApplicationContext()).getImageSize(file.getPath())[0] + " * " + Luban.get(getApplicationContext()).getImageSize(file.getPath())[1]);
+                        FileInfo fileInfo = new FileInfo(file);
+                        thumbImageSize.setText(fileInfo.getWidth() + " * " + fileInfo.getHeight());
                     }
 
                     @Override
@@ -92,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private void compressWithRx(File file) {
         Luban.get(this)
-                .load(file)
+                .load(new FileInfo(file))
                 .putGear(Luban.THIRD_GEAR)
                 .asObservable()
                 .subscribeOn(Schedulers.io())
@@ -120,7 +125,47 @@ public class MainActivity extends AppCompatActivity {
                         MainActivity.this.sendBroadcast(intent);
 
                         thumbFileSize.setText(file.length() / 1024 + "k");
-                        thumbImageSize.setText(Luban.get(getApplicationContext()).getImageSize(file.getPath())[0] + " * " + Luban.get(getApplicationContext()).getImageSize(file.getPath())[1]);
+                        FileInfo fileInfo = new FileInfo(file);
+                        thumbImageSize.setText(fileInfo.getWidth() + " * " + fileInfo.getHeight());
+                    }
+                });
+    }
+
+    /**
+     * 压缩单张图片 RxJava 方式
+     */
+    private void compressWithRx(Bitmap bitmap) {
+        Luban.get(this)
+                .load(new BitmapInfo(bitmap))
+                .putGear(Luban.THIRD_GEAR)
+                .asObservable()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .doOnError(new Action1<Throwable>() {
+                    @Override
+                    public void call(Throwable throwable) {
+                        throwable.printStackTrace();
+                    }
+                })
+                .onErrorResumeNext(new Func1<Throwable, Observable<? extends File>>() {
+                    @Override
+                    public Observable<? extends File> call(Throwable throwable) {
+                        return Observable.empty();
+                    }
+                })
+                .subscribe(new Action1<File>() {
+                    @Override
+                    public void call(File file) {
+                        Glide.with(MainActivity.this).load(file).into(image);
+
+                        Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                        Uri uri = Uri.fromFile(file);
+                        intent.setData(uri);
+                        MainActivity.this.sendBroadcast(intent);
+
+                        thumbFileSize.setText(file.length() / 1024 + "k");
+                        FileInfo fileInfo = new FileInfo(file);
+                        thumbImageSize.setText(fileInfo.getWidth() + " * " + fileInfo.getHeight());
                     }
                 });
     }
@@ -135,9 +180,11 @@ public class MainActivity extends AppCompatActivity {
 
                 File imgFile = new File(photos.get(0));
                 fileSize.setText(imgFile.length() / 1024 + "k");
-                imageSize.setText(Luban.get(this).getImageSize(imgFile.getPath())[0] + " * " + Luban.get(this).getImageSize(imgFile.getPath())[1]);
+                FileInfo fileinfo = new FileInfo(imgFile);
+                imageSize.setText(fileinfo.getWidth() + " * " + fileinfo.getHeight());
 
-                compressWithRx(new File(photos.get(0)));
+                //compressWithRx(new File(photos.get(0)));
+                compressWithRx(BitmapFactory.decodeFile(photos.get(0)));
             }
         }
     }
