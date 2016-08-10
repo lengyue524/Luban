@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
      * 压缩单张图片 Listener 方式
      */
     private void compressWithLs(File file) {
-        Luban.get(this)
+        Luban.get()
                 .load(new FileInfo(file))
                 .putGear(Luban.THIRD_GEAR)
                 .setCompressListener(new OnCompressListener() {
@@ -77,7 +77,9 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     @Override
-                    public void onSuccess(File file) {
+                    public void onSuccess(byte[] bytes) {
+                        String path = MainActivity.this.getCacheDir() + File.separator + System.currentTimeMillis();
+                        File file = Luban.saveImage(path, bytes);
                         Glide.with(MainActivity.this).load(file).into(image);
 
                         thumbFileSize.setText(file.length() / 1024 + "k");
@@ -96,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
      * 压缩单张图片 RxJava 方式
      */
     private void compressWithRx(File file) {
-        Luban.get(this)
+        Luban.get()
                 .load(new FileInfo(file))
                 .putGear(Luban.THIRD_GEAR)
                 .asObservable()
@@ -108,15 +110,17 @@ public class MainActivity extends AppCompatActivity {
                         throwable.printStackTrace();
                     }
                 })
-                .onErrorResumeNext(new Func1<Throwable, Observable<? extends File>>() {
+                .onErrorResumeNext(new Func1<Throwable, Observable<? extends byte[]>>() {
                     @Override
-                    public Observable<? extends File> call(Throwable throwable) {
+                    public Observable<? extends byte[]> call(Throwable throwable) {
                         return Observable.empty();
                     }
                 })
-                .subscribe(new Action1<File>() {
+                .subscribe(new Action1<byte[]>() {
                     @Override
-                    public void call(File file) {
+                    public void call(byte[] bytes) {
+                        String path = MainActivity.this.getCacheDir() + File.separator + System.currentTimeMillis();
+                        File file = Luban.saveImage(path, bytes);
                         Glide.with(MainActivity.this).load(file).into(image);
 
                         Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
@@ -135,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
      * 压缩单张图片 RxJava 方式
      */
     private void compressWithRx(Bitmap bitmap) {
-        Luban.get(this)
+        Luban.get()
                 .load(new BitmapInfo(bitmap))
                 .putGear(Luban.THIRD_GEAR)
                 .asObservable()
@@ -147,15 +151,17 @@ public class MainActivity extends AppCompatActivity {
                         throwable.printStackTrace();
                     }
                 })
-                .onErrorResumeNext(new Func1<Throwable, Observable<? extends File>>() {
+                .onErrorResumeNext(new Func1<Throwable, Observable<? extends byte[]>>() {
                     @Override
-                    public Observable<? extends File> call(Throwable throwable) {
+                    public Observable<? extends byte[]> call(Throwable throwable) {
                         return Observable.empty();
                     }
                 })
-                .subscribe(new Action1<File>() {
+                .subscribe(new Action1<byte[]>() {
                     @Override
-                    public void call(File file) {
+                    public void call(byte[] bytes) {
+                        String path = MainActivity.this.getCacheDir() + File.separator + System.currentTimeMillis();
+                        File file = Luban.saveImage(path, bytes);
                         Glide.with(MainActivity.this).load(file).into(image);
 
                         Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);

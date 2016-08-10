@@ -29,53 +29,12 @@ public class Luban {
 
     private static volatile Luban INSTANCE;
 
-    private final File mCacheDir;
-
     private OnCompressListener compressListener;
     private IImageInfo mImageInfo;
     private int gear = THIRD_GEAR;
 
-    Luban(File cacheDir) {
-        mCacheDir = cacheDir;
-    }
-
-    /**
-     * Returns a directory with a default name in the private cache directory of the application to use to store
-     * retrieved media and thumbnails.
-     *
-     * @param context A context.
-     * @see #getPhotoCacheDir(android.content.Context, String)
-     */
-    public static File getPhotoCacheDir(Context context) {
-        return getPhotoCacheDir(context, Luban.DEFAULT_DISK_CACHE_DIR);
-    }
-
-    /**
-     * Returns a directory with the given name in the private cache directory of the application to use to store
-     * retrieved media and thumbnails.
-     *
-     * @param context   A context.
-     * @param cacheName The name of the subdirectory in which to store the cache.
-     * @see #getPhotoCacheDir(android.content.Context)
-     */
-    public static File getPhotoCacheDir(Context context, String cacheName) {
-        File cacheDir = context.getCacheDir();
-        if (cacheDir != null) {
-            File result = new File(cacheDir, cacheName);
-            if (!result.mkdirs() && (!result.exists() || !result.isDirectory())) {
-                // File wasn't able to create a directory, or the result exists but not a directory
-                return null;
-            }
-            return result;
-        }
-        if (Log.isLoggable(TAG, Log.ERROR)) {
-            Log.e(TAG, "default disk cache dir is null");
-        }
-        return null;
-    }
-
-    public static Luban get(Context context) {
-        if (INSTANCE == null) INSTANCE = new Luban(Luban.getPhotoCacheDir(context));
+    public static Luban get() {
+        if (INSTANCE == null) INSTANCE = new Luban();
         return INSTANCE;
     }
 
@@ -94,17 +53,17 @@ public class Luban {
                             if (compressListener != null) compressListener.onError(throwable);
                         }
                     })
-                    .onErrorResumeNext(Observable.<File>empty())
-                    .filter(new Func1<File, Boolean>() {
+                    .onErrorResumeNext(Observable.<byte[]>empty())
+                    .filter(new Func1<byte[], Boolean>() {
                         @Override
-                        public Boolean call(File file) {
-                            return file != null;
+                        public Boolean call(byte[] bytes) {
+                            return bytes != null;
                         }
                     })
-                    .subscribe(new Action1<File>() {
+                    .subscribe(new Action1<byte[]>() {
                         @Override
-                        public void call(File file) {
-                            if (compressListener != null) compressListener.onSuccess(file);
+                        public void call(byte[] bytes) {
+                            if (compressListener != null) compressListener.onSuccess(bytes);
                         }
                     });
         else if (gear == Luban.THIRD_GEAR)
@@ -117,17 +76,17 @@ public class Luban {
                             if (compressListener != null) compressListener.onError(throwable);
                         }
                     })
-                    .onErrorResumeNext(Observable.<File>empty())
-                    .filter(new Func1<File, Boolean>() {
+                    .onErrorResumeNext(Observable.<byte[]>empty())
+                    .filter(new Func1<byte[], Boolean>() {
                         @Override
-                        public Boolean call(File file) {
-                            return file != null;
+                        public Boolean call(byte[] bytes) {
+                            return bytes != null;
                         }
                     })
-                    .subscribe(new Action1<File>() {
+                    .subscribe(new Action1<byte[]>() {
                         @Override
-                        public void call(File file) {
-                            if (compressListener != null) compressListener.onSuccess(file);
+                        public void call(byte[] bytes) {
+                            if (compressListener != null) compressListener.onSuccess(bytes);
                         }
                     });
 
@@ -149,7 +108,7 @@ public class Luban {
         return this;
     }
 
-    public Observable<File> asObservable() {
+    public Observable<byte[]> asObservable() {
         if (gear == FIRST_GEAR)
             return Observable.just(firstCompress());
         else if (gear == THIRD_GEAR)
@@ -157,7 +116,7 @@ public class Luban {
         else return Observable.empty();
     }
 
-    private File thirdCompress() {
+    private byte[] thirdCompress() {
         double size;
 
         int angle = mImageInfo.getImageSpinAngle();
@@ -209,7 +168,7 @@ public class Luban {
         return compress(thumbW, thumbH, angle, (long) size);
     }
 
-    private File firstCompress() {
+    private byte[] firstCompress() {
         int minSize = 60;
         int longSide = 720;
         int shortSide = 1280;
@@ -301,9 +260,9 @@ public class Luban {
      * @param angle  rotation angle of thumbnail
      * @param size   the file size of image
      */
-    private File compress(int width, int height, int angle, long size) {
+    private byte[] compress(int width, int height, int angle, long size) {
         Bitmap thbBitmap = compress(width, height);
-        return saveImage(thbBitmap, angle, size);
+        return toByte(thbBitmap, angle, size);
     }
 
     /**
@@ -323,23 +282,16 @@ public class Luban {
     }
 
     /**
-     * 保存图片到指定路径
-     * Save image with specified size
-     *
+     * Bitmap转换为字节数组
      * @param bitmap the image what be save   目标图片
      * @param angle  rotation angle of thumbnail
      * @param size   the file size of image   期望大小
+     * @return
      */
-    private File saveImage(Bitmap bitmap, int angle, long size) {
+    private byte[] toByte(Bitmap bitmap, int angle, long size) {
         checkNotNull(bitmap, TAG + "bitmap cannot be null");
 
-        String thumbFilePath = mCacheDir.getAbsolutePath() + "/" + System.currentTimeMillis();
-
         bitmap = rotatingImage(angle, bitmap);
-
-        File result = new File(thumbFilePath.substring(0, thumbFilePath.lastIndexOf("/")));
-
-        if (!result.exists() && !result.mkdirs()) return null;
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         int options = 100;
@@ -350,16 +302,27 @@ public class Luban {
             options -= 6;
             bitmap.compress(Bitmap.CompressFormat.JPEG, options, stream);
         }
+        return stream.toByteArray();
+    }
+
+    /**
+     * 保存图片到指定路径
+     * Save image with specified size
+     * @param bytes 图片字节数组
+     */
+    public static File saveImage(String path, byte[] bytes) {
+        File result = new File(path.substring(0, path.lastIndexOf("/")));
+        if (!result.exists() && !result.mkdirs()) return null;
 
         try {
-            FileOutputStream fos = new FileOutputStream(thumbFilePath);
-            fos.write(stream.toByteArray());
+            FileOutputStream fos = new FileOutputStream(path);
+            fos.write(bytes);
             fos.flush();
             fos.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return new File(thumbFilePath);
+        return new File(path);
     }
 }
