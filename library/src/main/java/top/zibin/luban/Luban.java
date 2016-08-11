@@ -125,40 +125,40 @@ public class Luban {
         int thumbW = width % 2 == 1 ? width + 1 : width;
         int thumbH = height % 2 == 1 ? height + 1 : height;
 
-        width = thumbW > thumbH ? thumbH : thumbW;
-        height = thumbW > thumbH ? thumbW : thumbH;
+        int maxBorder = Math.max(width, height);//使用最大边进行比例缩放计算
+        int minBorder = Math.min(width, height);
 
-        double scale = ((double) width / height);
+        double scale = ((double) minBorder / maxBorder);
 
-        if (scale <= 1 && scale > 0.5625) {
-            if (height < 1664) {
+        if (scale <= 1 && scale >= 0.5625) {
+            if (maxBorder < 1664) {
                 size = (width * height) / Math.pow(1664, 2) * 150;
                 size = size < 60 ? 60 : size;
-            } else if (height >= 1664 && height < 4990) {
+            } else if (maxBorder >= 1664 && maxBorder < 4990) {
                 thumbW = width / 2;
                 thumbH = height / 2;
                 size = (thumbW * thumbH) / Math.pow(2495, 2) * 300;
                 size = size < 60 ? 60 : size;
-            } else if (height >= 4990 && height < 10240) {
+            } else if (maxBorder >= 4990 && maxBorder < 10240) {
                 thumbW = width / 4;
                 thumbH = height / 4;
                 size = (thumbW * thumbH) / Math.pow(2560, 2) * 300;
                 size = size < 100 ? 100 : size;
             } else {
-                int multiple = height / 1280 == 0 ? 1 : height / 1280;
+                int multiple = maxBorder / 1280 == 0 ? 1 : maxBorder / 1280;
                 thumbW = width / multiple;
                 thumbH = height / multiple;
                 size = (thumbW * thumbH) / Math.pow(2560, 2) * 300;
                 size = size < 100 ? 100 : size;
             }
-        } else if (scale <= 0.5625 && scale > 0.5) {
-            int multiple = height / 1280 == 0 ? 1 : height / 1280;
+        } else if (scale < 0.5625 && scale >= 0.5) {
+            int multiple = maxBorder / 1280 == 0 ? 1 : maxBorder / 1280;
             thumbW = width / multiple;
             thumbH = height / multiple;
             size = (thumbW * thumbH) / (1440.0 * 2560.0) * 200;
             size = size < 100 ? 100 : size;
         } else {
-            int multiple = (int) Math.ceil(height / (1280.0 / scale));
+            int multiple = (int) Math.ceil(maxBorder / (1280.0 / scale));
             thumbW = width / multiple;
             thumbH = height / multiple;
             size = ((thumbW * thumbH) / (1280.0 * (1280 / scale))) * 500;
