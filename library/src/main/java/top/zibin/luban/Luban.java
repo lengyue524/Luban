@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.util.Log;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -25,7 +26,6 @@ public class Luban {
     public static final int THIRD_GEAR = 3;
 
     private static final String TAG = "Luban";
-    public static String DEFAULT_DISK_CACHE_DIR = "luban_disk_cache";
 
     private static volatile Luban INSTANCE;
 
@@ -324,5 +324,10 @@ public class Luban {
         }
 
         return new File(path);
+    }
+
+    public static Bitmap toBitmap(byte[] bytes) {
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
+        return BitmapFactory.decodeStream(byteArrayInputStream);
     }
 }
