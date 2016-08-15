@@ -68,6 +68,11 @@ public class FileInfo implements IImageInfo {
         return BitmapFactory.decodeFile(mFile.getAbsolutePath(), options);
     }
 
+    @Override
+    public byte[] getBytes() {
+        return Luban.toByte(decode(new BitmapFactory.Options()), getImageSpinAngle(), Long.MAX_VALUE);
+    }
+
     private void init() {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;

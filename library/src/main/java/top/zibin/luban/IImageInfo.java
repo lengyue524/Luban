@@ -16,4 +16,6 @@ public interface IImageInfo {
     int getSize();
 
     Bitmap decode(BitmapFactory.Options options);
+
+    byte[] getBytes();
 }

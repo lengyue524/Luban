@@ -43,4 +43,9 @@ public class BitmapInfo implements IImageInfo {
         ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
         return BitmapFactory.decodeStream(is, null, options);
     }
+
+    @Override
+    public byte[] getBytes() {
+        return Luban.toByte(mBitmap, 0, Long.MAX_VALUE);
+    }
 }

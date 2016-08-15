@@ -1,10 +1,8 @@
 package top.zibin.luban;
 
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
-import android.util.Log;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -13,6 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import rx.Observable;
+import rx.Subscriber;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
 import rx.functions.Func1;
@@ -44,7 +43,7 @@ public class Luban {
         if (compressListener != null) compressListener.onStart();
 
         if (gear == Luban.FIRST_GEAR)
-            Observable.just(firstCompress())
+            getFirstCompressObservable()
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
                     .doOnError(new Action1<Throwable>() {
@@ -53,11 +52,11 @@ public class Luban {
                             if (compressListener != null) compressListener.onError(throwable);
                         }
                     })
-                    .onErrorResumeNext(Observable.<byte[]>empty())
+                    .onErrorResumeNext(getFirstCompressObservable())
                     .filter(new Func1<byte[], Boolean>() {
                         @Override
-                        public Boolean call(byte[] bytes) {
-                            return bytes != null;
+                        public Boolean call(byte[] imageInfo) {
+                            return imageInfo != null;
                         }
                     })
                     .subscribe(new Action1<byte[]>() {
@@ -67,7 +66,7 @@ public class Luban {
                         }
                     });
         else if (gear == Luban.THIRD_GEAR)
-            Observable.just(thirdCompress())
+            getThirdCompressObservable()
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
                     .doOnError(new Action1<Throwable>() {
@@ -76,7 +75,7 @@ public class Luban {
                             if (compressListener != null) compressListener.onError(throwable);
                         }
                     })
-                    .onErrorResumeNext(Observable.<byte[]>empty())
+                    .onErrorResumeNext(getThirdCompressObservable())
                     .filter(new Func1<byte[], Boolean>() {
                         @Override
                         public Boolean call(byte[] bytes) {
@@ -110,10 +109,30 @@ public class Luban {
 
     public Observable<byte[]> asObservable() {
         if (gear == FIRST_GEAR)
-            return Observable.just(firstCompress());
+            return getFirstCompressObservable();
         else if (gear == THIRD_GEAR)
-            return Observable.just(thirdCompress());
+            return getThirdCompressObservable();
         else return Observable.empty();
+    }
+
+    private Observable<byte[]> getFirstCompressObservable() {
+        return Observable.create(new Observable.OnSubscribe<byte[]>() {
+            @Override
+            public void call(Subscriber<? super byte[]> subscriber) {
+                subscriber.onNext(firstCompress());
+                subscriber.onCompleted();
+            }
+        });
+    }
+
+    private Observable<byte[]> getThirdCompressObservable() {
+        return Observable.create(new Observable.OnSubscribe<byte[]>() {
+            @Override
+            public void call(Subscriber<? super byte[]> subscriber) {
+                subscriber.onNext(thirdCompress());
+                subscriber.onCompleted();
+            }
+        });
     }
 
     private byte[] thirdCompress() {
@@ -132,6 +151,7 @@ public class Luban {
 
         if (scale <= 1 && scale >= 0.5625) {
             if (maxBorder < 1664) {
+                if (mImageInfo.getSize() / 1024 < 150) return mImageInfo.getBytes();
                 size = (width * height) / Math.pow(1664, 2) * 150;
                 size = size < 60 ? 60 : size;
             } else if (maxBorder >= 1664 && maxBorder < 4990) {
@@ -151,11 +171,13 @@ public class Luban {
                 size = (thumbW * thumbH) / Math.pow(2560, 2) * 300;
                 size = size < 100 ? 100 : size;
             }
-        } else if (scale < 0.5625 && scale >= 0.5) {
-            int multiple = maxBorder / 1280 == 0 ? 1 : maxBorder / 1280;
+        } else if (scale <= 0.5625 && scale >= 0.5) {
+            if (height < 1280 && mImageInfo.getSize() / 1024 < 200) return mImageInfo.getBytes();
+
+            int multiple = height / 1280 == 0 ? 1 : height / 1280;
             thumbW = width / multiple;
             thumbH = height / multiple;
-            size = (thumbW * thumbH) / (1440.0 * 2560.0) * 200;
+            size = (thumbW * thumbH) / (1440.0 * 2560.0) * 400;
             size = size < 100 ? 100 : size;
         } else {
             int multiple = (int) Math.ceil(maxBorder / (1280.0 / scale));
@@ -283,12 +305,13 @@ public class Luban {
 
     /**
      * Bitmap转换为字节数组
+     *
      * @param bitmap the image what be save   目标图片
      * @param angle  rotation angle of thumbnail
      * @param size   the file size of image   期望大小
      * @return
      */
-    private byte[] toByte(Bitmap bitmap, int angle, long size) {
+    public static byte[] toByte(Bitmap bitmap, int angle, long size) {
         checkNotNull(bitmap, TAG + "bitmap cannot be null");
 
         bitmap = rotatingImage(angle, bitmap);
@@ -297,7 +320,7 @@ public class Luban {
         int options = 100;
         bitmap.compress(Bitmap.CompressFormat.JPEG, options, stream);
 
-        while (stream.toByteArray().length / 1024 > size) {
+        while (stream.toByteArray().length / 1024 > size && options > 6) {
             stream.reset();
             options -= 6;
             bitmap.compress(Bitmap.CompressFormat.JPEG, options, stream);
@@ -308,6 +331,7 @@ public class Luban {
     /**
      * 保存图片到指定路径
      * Save image with specified size
+     *
      * @param bytes 图片字节数组
      */
     public static File saveImage(String path, byte[] bytes) {
@@ -330,4 +354,5 @@ public class Luban {
         ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
         return BitmapFactory.decodeStream(byteArrayInputStream);
     }
+
 }
