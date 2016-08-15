@@ -32,6 +32,8 @@ public class Luban {
     private IImageInfo mImageInfo;
     private int gear = THIRD_GEAR;
 
+    private boolean needRotate;
+
     public static Luban get() {
         if (INSTANCE == null) INSTANCE = new Luban();
         return INSTANCE;
@@ -149,7 +151,7 @@ public class Luban {
 
         double scale = ((double) minBorder / maxBorder);
 
-        if (scale <= 1 && scale >= 0.5625) {
+        if (scale <= 1 && scale > 0.5625) {
             if (maxBorder < 1664) {
                 if (mImageInfo.getSize() / 1024 < 150) return mImageInfo.getBytes();
                 size = (width * height) / Math.pow(1664, 2) * 150;
@@ -171,10 +173,10 @@ public class Luban {
                 size = (thumbW * thumbH) / Math.pow(2560, 2) * 300;
                 size = size < 100 ? 100 : size;
             }
-        } else if (scale <= 0.5625 && scale >= 0.5) {
-            if (height < 1280 && mImageInfo.getSize() / 1024 < 200) return mImageInfo.getBytes();
+        } else if (scale <= 0.5625 && scale > 0.5) {
+            if (maxBorder < 1280 && mImageInfo.getSize() / 1024 < 200) return mImageInfo.getBytes();
 
-            int multiple = height / 1280 == 0 ? 1 : height / 1280;
+            int multiple = maxBorder / 1280 == 0 ? 1 : maxBorder / 1280;
             thumbW = width / multiple;
             thumbH = height / multiple;
             size = (thumbW * thumbH) / (1440.0 * 2560.0) * 400;
